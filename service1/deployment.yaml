@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
       - name: myapp
-        image: ser1:latest
-        imagePullPolicy: Never 
+        image: naresh2026/repo1:ser1
+        #imagePullPolicy: Never 
         ports:
         - containerPort: 8082
         env:
