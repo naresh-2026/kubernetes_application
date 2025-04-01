@@ -4,7 +4,7 @@ pipeline {
         DOCKER_USERNAME = 'naresh2026'
         DOCKER_REPO = 'repo1'
         DOCKER_CREDENTIALS_ID = 'cred1'
-        DOCKER_REGISTRY = 'index.docker.io'
+        DOCKER_REGISTRY = 'https://index.docker.io/v1/'
     }
     stages {
         stage('Checkout Code') {
@@ -16,7 +16,7 @@ pipeline {
         stage('Build and Push Docker Images') {
     steps {
         script {
-            docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
+            docker.withRegistry(${DOCKER_REGISTRY}, DOCKER_CREDENTIALS_ID) {
             def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
             def imageCount = 1  // Start numbering from 1
 
@@ -28,8 +28,8 @@ pipeline {
                     echo "Building Docker Image for ${dir} as ${imageName}"
                     docker.build(imageName, dir)
 
-                    echo "Pushing Docker Image ${imageName} to Docker Registry"
                     def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}"
+                    echo "Pushing Docker Image ${image_name} to Docker Registry"
                     docker.image(image_name).push("ser${imageCount}")
 
                     imageCount++
