@@ -16,6 +16,7 @@ pipeline {
         stage('Build and Push Docker Images') {
     steps {
         script {
+            docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
             def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
             def imageCount = 1  // Start numbering from 1
 
@@ -35,6 +36,7 @@ pipeline {
                 } else {
                     echo "Skipping ${dir} as no Dockerfile found."
                 }
+            }
             }
         }
     }
