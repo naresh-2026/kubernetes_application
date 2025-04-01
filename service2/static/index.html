@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        .date-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px;
+        }
+        .date-input {
+            padding: 8px;
+            margin-left: 10px;
+            color: black;
+        }
+        .future-date {
+            color: gray;
+        }
+        .completed-date {
+            color: black;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Track Your Important Dates</h2>
+
+<div id="dates">
+    <div class="date-container">
+        <input type="checkbox" id="check1" disabled>
+        <input type="date" id="date1" class="date-input" onchange="updateDateStyle(1)">
+        <button onclick="setDate(1)">Set</button>
+    </div>
+    <div class="date-container">
+        <input type="checkbox" id="check2" disabled>
+        <input type="date" id="date2" class="date-input" onchange="updateDateStyle(2)">
+        <button onclick="setDate(2)">Set</button>
+    </div>
+    <div class="date-container">
+        <input type="checkbox" id="check3" disabled>
+        <input type="date" id="date3" class="date-input" onchange="updateDateStyle(3)">
+        <button onclick="setDate(3)">Set</button>
+    </div>
+    <div class="date-container">
+        <input type="checkbox" id="check4" disabled>
+        <input type="date" id="date4" class="date-input" onchange="updateDateStyle(4)">
+        <button onclick="setDate(4)">Set</button>
+    </div>
+    <div class="date-container">
+        <input type="checkbox" id="check5" disabled>
+        <input type="date" id="date5" class="date-input" onchange="updateDateStyle(5)">
+        <button onclick="setDate(5)">Set</button>
+    </div>
+</div>
+
+<h3>Notifications</h3>
+<div id="notifications"></div>
+
+<script>
+    let ws = new WebSocket(`ws://${window.location.hostname}:30083/ws`);
+
+    ws.onmessage = function(event) {
+        let message = JSON.parse(event.data).message;
+        let notificationBox = document.getElementById("notifications");
+        let notification = document.createElement("p");
+        notification.innerText = message;
+        notificationBox.appendChild(notification);
+
+        // Extract the date from the message (assuming message format: "Today (YYYY-MM-DD) is the requested day!")
+        let match = message.match(/\((\d{4}-\d{2}-\d{2})\)/);
+        if (match) {
+            let notifiedDate = match[1];
+            markDateCompleted(notifiedDate);
+        }
+    };
+
+    async function setDate(index) {
+        let dateInput = document.getElementById(`date${index}`);
+        let checkbox = document.getElementById(`check${index}`);
+
+        if (!dateInput.value) {
+            alert("Please select a date first!");
+            return;
+        }
+
+        checkbox.checked = true; // Mark checkbox as checked
+        checkbox.disabled = false; // Enable checkbox
+
+        await fetch("/check-date", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: dateInput.value })
+        });
+
+        updateDateStyle(index);
+    }
+
+    function updateDateStyle(index) {
+        let dateInput = document.getElementById(`date${index}`);
+        let selectedDate = new Date(dateInput.value);
+        let currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+
+        if (selectedDate.getTime() === currentDate.getTime()) {
+            dateInput.classList.remove("future-date");
+            dateInput.classList.add("completed-date");
+        } else {
+            dateInput.classList.remove("completed-date");
+            dateInput.classList.add("future-date");
+        }
+    }
+
+    function markDateCompleted(notifiedDate) {
+        for (let i = 1; i <= 5; i++) {
+            let dateInput = document.getElementById(`date${i}`);
+            let checkbox = document.getElementById(`check${i}`);
+
+            if (dateInput.value === notifiedDate) {
+                dateInput.classList.remove("future-date");
+                dateInput.classList.add("completed-date");
+                checkbox.checked = true; // Check the checkbox
+                checkbox.disabled = true; // Disable it after notification
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

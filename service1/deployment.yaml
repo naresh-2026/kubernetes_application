@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: myapp
+        image: ser1:latest
+        imagePullPolicy: Never 
+        ports:
+        - containerPort: 8082
+        env:
+            - name: WEBSOCKET_ALLOWED_ORIGINS
+              value: "*"
+              # valueFrom:
+              #   configMapKeyRef:
+              #     name: frontend-config
+              #     key: FRONTEND_URL
