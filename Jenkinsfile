@@ -13,24 +13,33 @@ pipeline {
             }
         }
         
-        stage('Build and push Docker Images') {
-            steps {
-                script {
-                    def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
-                    def imageCount = 1  // Start numbering from 1
+        stage('Build and Push Docker Images') {
+    steps {
+        script {
+            def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
+            def imageCount = 1  // Start numbering from 1
 
-                    dirs.each { dir ->
-                        def imageName = "ser${imageCount}"
-                        echo "Building Docker Image for ${dir} as ${imageName}"
-                        docker.build(imageName, dir)
-                        echo "Pushing Docker Image ${imageName} to Docker Registry"
-                        def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
-                        docker.image(image_name).push('latest')
-                        imageCount++
-                    }
+            dirs.each { dir ->
+                def dockerfileExists = sh(script: "test -f ${dir}/Dockerfile && echo 'exists' || echo 'not found'", returnStdout: true).trim()
+
+                if (dockerfileExists == 'exists') {
+                    def imageName = "ser${imageCount}"
+                    echo "Building Docker Image for ${dir} as ${imageName}"
+                    docker.build(imageName, dir)
+
+                    echo "Pushing Docker Image ${imageName} to Docker Registry"
+                    def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
+                    docker.image(image_name).push('latest')
+
+                    imageCount++
+                } else {
+                    echo "Skipping ${dir} as no Dockerfile found."
                 }
             }
         }
+    }
+}
+
 
         // stage('Push Docker Images') {
         //     steps {
