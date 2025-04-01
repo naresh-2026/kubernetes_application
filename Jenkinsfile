@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_USERNAME = 'naresh2026'
+        DOCKER_REPO = 'repo1'
+        DOCKER_CREDENTIALS_ID = 'cred1'
+        DOCKER_REGISTRY = 'index.docker.io'
+    }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build and push Docker Images') {
+            steps {
+                script {
+                    def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
+                    def imageCount = 1  // Start numbering from 1
+
+                    dirs.each { dir ->
+                        def imageName = "ser${imageCount}"
+                        echo "Building Docker Image for ${dir} as ${imageName}"
+                        docker.build(imageName, dir)
+                        echo "Pushing Docker Image ${imageName} to Docker Registry"
+                        def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
+                        docker.image(image_name).push('latest')
+                        imageCount++
+                    }
+                }
+            }
+        }
+
+        // stage('Push Docker Images') {
+        //     steps {
+        //         script {
+        //             docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
+        //                 def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
+        //                 def imageCount = 1
+
+        //                 dirs.each { dir ->
+        //                     def imageName = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
+        //                     echo "Pushing Docker Image ${imageName} to Docker Registry"
+        //                     docker.image(imageName).push('latest')
+        //                     imageCount++
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
