@@ -28,8 +28,8 @@ pipeline {
                     docker.build(imageName, dir)
 
                     echo "Pushing Docker Image ${imageName} to Docker Registry"
-                    def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
-                    docker.image(image_name).push('latest')
+                    def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}"
+                    docker.image(image_name).push("ser${imageCount}")
 
                     imageCount++
                 } else {
