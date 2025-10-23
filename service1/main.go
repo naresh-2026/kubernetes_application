@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/websocket"
 )
-var x=0
 var scheduledTime string
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
