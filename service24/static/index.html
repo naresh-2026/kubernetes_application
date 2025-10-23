@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Time Scheduler</title>
+    <style>
+        #popup {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: auto;
+            max-width: 300px;
+            text-align: center;
+        }
+
+        .notification {
+            background-color: lightgreen;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            font-size: 16px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #notifications {
+            margin-top: 10px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Enter Times for Notifications (HH:MM)</h2>
+
+    <form>
+        <label>Time Slot 1:</label>
+        <input type="time" id="timeInput1" required>
+        <button type="button" onclick="scheduleTime(1)">Schedule</button><br><br>
+
+        <label>Time Slot 2:</label>
+        <input type="time" id="timeInput2">
+        <button type="button" onclick="scheduleTime(2)">Schedule</button><br><br>
+
+        <label>Time Slot 3:</label>
+        <input type="time" id="timeInput3">
+        <button type="button" onclick="scheduleTime(3)">Schedule</button><br><br>
+
+        <label>Time Slot 4:</label>
+        <input type="time" id="timeInput4">
+        <button type="button" onclick="scheduleTime(4)">Schedule</button><br><br>
+
+        <label>Time Slot 5:</label>
+        <input type="time" id="timeInput5">
+        <button type="button" onclick="scheduleTime(5)">Schedule</button><br><br>
+    </form>
+
+    <div id="popup"></div>
+
+    <h3>Notifications</h3>
+    <div id="notifications"></div>
+
+    <script>
+        function playBeep() {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            oscillator.type = "sine"; // Simple beep sound
+            oscillator.frequency.setValueAtTime(440, context.currentTime); // 440Hz
+            oscillator.connect(context.destination);
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 200); // Stop sound after 200ms
+        }
+        const ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+        ws.onmessage = function(event) {
+            playBeep(); // Play the notification sound when a message is received
+            const notificationsContainer = document.getElementById("notifications");
+            const messageElement = document.createElement("p");
+            messageElement.innerText = event.data;
+            notificationsContainer.appendChild(messageElement);
+            //let message = event.data;
+            // let notificationBox = document.getElementById("notifications");
+            // let notification = document.createElement("div");
+            // notification.classList.add("notification");
+            // notification.innerText = message;
+            // notificationBox.appendChild(notification);
+
+            setTimeout(() => notification.remove(), 5000); // Remove after 5 seconds
+        };
+
+        function scheduleTime(slot) {
+            const timeInput = document.getElementById("timeInput" + slot).value;
+            
+            if (!timeInput) {
+                alert("Please enter a time for slot " + slot);
+                return;
+            }
+
+            fetch('/schedule', {
+                method: 'POST',
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ time: timeInput })
+            }).then(response => response.json())
+              .then(data => showNotification(data.message))
+              .catch(error => console.error("Error:", error));
+        }
+
+        function showNotification(text) {
+            const notificationContainer = document.getElementById("popup");
+            const notification = document.createElement("div");
+            notification.classList.add("notification");
+            notification.innerText = text;
+            notificationContainer.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 2000); // Hide after 2 seconds
+        }
+    </script>
+</body>
+</html>
