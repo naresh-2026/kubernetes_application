@@ -1,73 +1,130 @@
 pipeline {
     agent any
-    environment {
-        DOCKER_USERNAME = 'naresh2026'
-        DOCKER_REPO = 'repo1'
-        DOCKER_CREDENTIALS_ID = 'cred1'
-        DOCKER_REGISTRY = 'https://index.docker.io/v1/'
+    triggers {
+        githubPush() // Trigger pipeline on GitHub push
     }
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+    }
+
     stages {
-        stage('Checkout Code') {
+        stage('Initialize') {
+            steps {
+                script {
+                    echo "📦 Starting CI/CD Pipeline"
+
+                    def triggerTime = sh(
+                        script: "git log -1 --pretty=format:'%cI'",
+                        returnStdout: true
+                    ).trim()
+                    if (!triggerTime) {
+                        echo "⚠️ Latest Git commit not found"
+                        triggerTime = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
+                    } else {
+                        echo "ℹ️ Latest Git commit date: ${triggerTime}"
+                    }
+
+                    def triggerEpoch = sh(script: "date -d '${triggerTime}' +%s", returnStdout: true).trim()
+                    def pipelineStartEpoch = sh(script: "date +%s", returnStdout: true).trim()
+
+                    env.PIPELINE_START = pipelineStartEpoch
+                    env.TRIGGER_TO_START_DELAY = (pipelineStartEpoch.toInteger() - triggerEpoch.toInteger()).toString()
+                    echo "⏱️ Trigger-to-start delay: ${env.TRIGGER_TO_START_DELAY} seconds"
+                }
+            }
+        }
+
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        
-        stage('Build and Push Docker Images') {
-    steps {
-        script {
-            docker.withRegistry(${DOCKER_REGISTRY}, DOCKER_CREDENTIALS_ID) {
-            def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
-            def imageCount = 1  // Start numbering from 1
 
-            dirs.each { dir ->
-                def dockerfileExists = sh(script: "test -f ${dir}/Dockerfile && echo 'exists' || echo 'not found'", returnStdout: true).trim()
+        stage('Build, Push and Deploy Microservices') {
+            steps {
+                script {
+                    def servicesDir = "."
+                    def services = sh(
+                        script: "ls -d ${servicesDir}/*/ 2>/dev/null | grep -v '@tmp' | xargs -n 1 basename || true",
+                        returnStdout: true
+                    ).trim().split("\n")
 
-                if (dockerfileExists == 'exists') {
-                    def imageName = "ser${imageCount}"
-                    echo "Building Docker Image for ${dir} as ${imageName}"
-                    docker.build(imageName, dir)
+                    if (!services) {
+                        echo "⚠️ No services found in ${servicesDir}"
+                        services = []
+                    }
 
-                    def image_name = "${DOCKER_USERNAME}/${DOCKER_REPO}"
-                    echo "Pushing Docker Image ${image_name} to Docker Registry"
-                    docker.image(image_name).push("ser${imageCount}")
+                    echo "🔍 Detected services: ${services.join(', ')}"
 
-                    imageCount++
-                } else {
-                    echo "Skipping ${dir} as no Dockerfile found."
+                    def parallelSteps = [:]
+
+                    for (serviceName in services) {
+                        def svc = serviceName
+                        parallelSteps[svc] = {
+                            stage("Deploy ${svc}") {
+                                def startTime = sh(script: "date +%s", returnStdout: true).trim()
+                                dir("${servicesDir}/${svc}") {
+
+                                    // Build Go binary
+                                    sh """
+                                        echo "🛠 Building Go binary for ${svc}"
+                                        go mod tidy
+                                        go build -o app .
+                                    """
+
+                                    // Docker build and push
+                                    withCredentials([
+                                        usernamePassword(credentialsId: 'dockerhub-username',
+                                                         usernameVariable: 'DOCKERHUB_USERNAME',
+                                                         passwordVariable: 'DOCKERHUB_TOKEN')
+                                    ]) {
+                                        sh """
+                                            echo "🐳 Building Docker image for ${svc}"
+                                            docker build -t ${DOCKERHUB_USERNAME}/repo1:${svc} .
+                                        """
+                                        sh 'sleep 0.4'
+                                        sh """
+                                            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+                                            echo "📤 Pushing Docker image for ${svc}"
+                                            docker push ${DOCKERHUB_USERNAME}/githubactions:${svc}
+                                        """
+                                    }
+
+                                    // Deploy to Kubernetes via ArgoCD
+                                    sh """
+                                        echo "🚀 Deploying ${svc} to Kubernetes via ArgoCD"
+                                        argocd app sync ${svc} --grpc-web --auth-token \$ARGOCD_AUTH_TOKEN
+                                        argocd app wait ${svc} --health --timeout 300
+                                    """
+                                }
+                                def endTime = sh(script: "date +%s", returnStdout: true).trim()
+                                def duration = endTime.toInteger() - startTime.toInteger()
+                                echo "✅ Deployment of ${svc} took ${duration} seconds"
+                            }
+                        }
+                    }
+
+                    parallel parallelSteps
                 }
             }
-            }
         }
-    }
-}
-
-
-        // stage('Push Docker Images') {
-        //     steps {
-        //         script {
-        //             docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
-        //                 def dirs = sh(script: 'find . -type d -mindepth 1 -maxdepth 1', returnStdout: true).trim().split("\n")
-        //                 def imageCount = 1
-
-        //                 dirs.each { dir ->
-        //                     def imageName = "${DOCKER_USERNAME}/${DOCKER_REPO}:ser${imageCount}"
-        //                     echo "Pushing Docker Image ${imageName} to Docker Registry"
-        //                     docker.image(imageName).push('latest')
-        //                     imageCount++
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
     }
 
     post {
-        success {
-            echo 'Pipeline executed successfully!'
+        always {
+            script {
+                def pipelineEndEpoch = sh(script: "date +%s", returnStdout: true).trim()
+                def totalDuration = pipelineEndEpoch.toInteger() - env.PIPELINE_START.toInteger()
+
+                echo "🎯 Pipeline completed!"
+                echo "⏱️ Total trigger-to-start delay: ${env.TRIGGER_TO_START_DELAY} seconds"
+                echo "🕒 Total pipeline duration: ${totalDuration} seconds"
+            }
         }
         failure {
-            echo 'Pipeline failed!'
+            echo "❌ Pipeline failed!"
         }
     }
 }
