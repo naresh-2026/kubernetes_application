@@ -119,7 +119,7 @@ func sendToAllClients(message string) {
 }
 
 func main() {
-	// Serve frontend
+	// Serve frontend handle
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 
 	// API endpoint to set dates
